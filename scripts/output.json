@@ -1,0 +1,9 @@
+[
+    {"before":{"id":1,"name":"Alice","email":"alice@test.com"},"after":{"id":1,"name":"Alice Smith","email":"alice@test.com"},"op":"u","ts_ms":1696764000000}, 
+    {"before":null,"after":{"id":2,"name":"Bob","email":"bob@test.com"},"op":"c","ts_ms":1696764010000}
+]
+
+| before.id | before.name | before.email                            | after.id | after.name  | after.email                             | op | ts_ms         |
+| --------- | ----------- | --------------------------------------- | -------- | ----------- | --------------------------------------- | -- | ------------- |
+| 1         | Alice       | [alice@test.com](mailto:alice@test.com) | 1        | Alice Smith | [alice@test.com](mailto:alice@test.com) | u  | 1696764000000 |
+| NaN       | NaN         | NaN                                     | 2        | Bob         | [bob@test.com](mailto:bob@test.com)     | c  | 1696764010000 |

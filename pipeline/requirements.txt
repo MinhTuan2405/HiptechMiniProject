@@ -124,3 +124,4 @@ pycryptodome
 pyspark==3.4.3
 boto3
 deltalake
+confluent_kafka 
