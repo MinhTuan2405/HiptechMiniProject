@@ -1,0 +1,186 @@
+version: "3.9"
+
+services:
+  minio:
+    hostname: minio
+    image: minio/minio
+    container_name: minio
+    ports:
+      - "9002:9000"
+      - "9001:9001"
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - ./volumes/minio:/data
+    env_file:
+      - .env
+    networks:
+      - de_network
+
+  mc:
+    image: minio/mc
+    container_name: mc
+    hostname: mc
+    env_file:
+      - .env
+    entrypoint: >
+      /bin/sh -c "
+        echo '===> Waiting for MinIO to start...';
+        until /usr/bin/mc alias set minio http://minio:9000 minio minio123; do
+          echo '...waiting for minio...' && sleep 2;
+        done;
+        echo '===> MinIO is ready. Creating buckets...';
+        /usr/bin/mc mb -p minio/landing-zone;
+        /usr/bin/mc mb -p minio/bronze-layer;
+        /usr/bin/mc mb -p minio/silver-layer;
+        /usr/bin/mc mb -p minio/gold-layer;
+        echo '===> Setting public read policy for all buckets...';
+        /usr/bin/mc anonymous set public minio/landing-zone;
+        /usr/bin/mc anonymous set public minio/bronze-layer;
+        /usr/bin/mc anonymous set public minio/silver-layer;
+        /usr/bin/mc anonymous set public minio/gold-layer;
+        echo '===> All buckets created successfully.';
+        exit 0;
+      "
+    depends_on:
+      - minio
+    networks:
+      - de_network
+
+  psql:
+    image: postgres:17
+    container_name: psql
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./volumes/postgresql:/var/lib/postgresql/data
+    env_file:
+      - .env
+    command: >
+      postgres -c wal_level=logical -c max_wal_senders=10 -c max_replication_slots=10
+    networks:
+      - de_network
+
+  pipeline:
+    build:
+      context: ./pipeline
+      dockerfile: ./Dockerfile
+    container_name: pipeline
+    image: pipeline:latest
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./pipeline:/opt/dagster/app
+    env_file:
+      - .env
+    networks:
+      - de_network
+
+  dagster:
+    build:
+      context: ./dagster/
+    image: dagster
+    container_name: dagster
+
+  dagster_dagit:
+    image: dagster:latest
+    container_name: dagster_dagit
+    entrypoint: ["dagit", "-h", "0.0.0.0", "-p", "3001", "-w", "workspace.yaml"]
+    expose:
+      - "3001"
+    ports:
+      - "3001:3001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./dagster_home:/opt/dagster/dagster_home
+    env_file:
+      - .env
+    networks:
+      - de_network
+
+  dagster_daemon:
+    image: dagster:latest
+    container_name: dagster_daemon
+    entrypoint: ["dagster-daemon", "run"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./dagster_home:/opt/dagster/dagster_home
+    env_file:
+      - .env
+    networks:
+      - de_network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    networks:
+      - de_network
+
+
+  kafka:
+    image: confluentinc/cp-enterprise-kafka:latest
+    depends_on:
+      - zookeeper
+    ports:
+      - 29092:29092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+    networks:
+      - de_network
+
+
+  debezium:
+    image: debezium/connect:2.3
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      # KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081 -- only for Avro
+      # VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081 -- like above
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    depends_on: [kafka]
+    ports:
+      - 8083:8083
+    networks:
+      - de_network
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:latest
+    environment:
+      - SCHEMA_REGISTRY_HOST_NAME=schema-registry
+      - SCHEMA_REGISTRY_LISTENERS=http://schema-registry:8081,http://localhost:8081
+      - SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS=kafka:9092
+    ports:
+      - 8081:8081
+    depends_on: 
+      - kafka
+    networks:
+      - de_network
+
+  kafka_manager:
+    image: hlebalbau/kafka-manager:stable
+    restart: always
+    ports:
+      - "9003:9000"
+    depends_on:
+      - zookeeper
+      - kafka
+    environment:
+      ZK_HOSTS: "zookeeper:2181"
+      APPLICATION_SECRET: "random-secret"
+    command: -Dpidfile.path=/dev/null 
+    networks:
+      - de_network
+
+networks:
+  de_network:
+    driver: bridge
+    name: de_network

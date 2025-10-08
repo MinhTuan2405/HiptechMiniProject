@@ -1,0 +1,3 @@
+dagit==1.11.5
+dagster==1.11.5
+dagster-postgres

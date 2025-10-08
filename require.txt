@@ -1,0 +1,50 @@
+1. Cài đặt & Cấu hình Tools On-Premise: 
+
+[ ] Deploy MinIO: 
+
+Chạy MinIO Server (Docker). 
+
+Truy cập giao diện web, tạo access key và secret key. 
+
+Tạo các bucket với cấu trúc rõ ràng: 
+
+landing-zone: Nơi nhận file upload ban đầu. 
+
+bronze-layer: Lưu dữ liệu RAW (dạng Delta table). 
+
+silver-layer: Lưu dữ liệu đã qua xử lý, làm sạch. 
+
+gold-layer: Lưu dữ liệu đã được tổng hợp, sẵn sàng cho phân tích.
+
+
+Ingestion - Thu thập dữ liệu: 
+
+[ ] (File Upload): 
+
+Trong Dagster, tạo một Software-defined Asset tên raw_sales_file. 
+
+Trong asset này, viết Python code sử dụng thư viện boto3 để đọc file mới nhất từ bucket landing-zone. 
+
+Viết code để chuyển file CSV/JSON thành định dạng Parquet và lưu vào một bảng Delta/Iceberg trong bucket bronze-layer. 
+
+Tạo một Sensor trong Dagster, đặt tên là new_file_sensor. Sensor này sẽ định kỳ kiểm tra bucket landing-zone bằng boto3, nếu có file mới sẽ trigger job để chạy asset raw_sales_file. 
+
+[ ] (CDC): 
+
+Cấu hình Debezium Connector để theo dõi bảng customers trong database PostgreSQL. 
+
+Cấu hình Debezium để đẩy các change events (dạng JSON) vào một topic trên Kafka (nếu dùng) hoặc trực tiếp vào một thư mục trên MinIO. 
+
+Trong Dagster, tạo một asset tên bronze_cdc_customers để đọc các file JSON này, bóc tách dữ liệu (before, after, op) và ghi vào một bảng Delta/Iceberg tại bronze-layer.
+
+
+Video: Quay cảnh upload file, log ingest thành công, dữ liệu RAW hiển thị trong “Vùng RAW”. Quay các phương pháp kết nối 	Video demo ghi hình và thuyết minh cụ thể khả năng thu thập dữ liệu dưới các dạng khác nhau, tối thiểu cần đạt 2 loại thu thập dữ liệu sau: a) Files upload b) Change Data Capture (CDC)	"
+Kịch bản upload file On-Prem
+1. Giao diện Dagster & MinIO (Trạng thái ban đầu) 
+2. Kéo thả file này vào giao diện upload của một tool nội bộ hoặc trực tiếp vào một bucket ""raw"" trên MinIO
+3. sensor của Dagster sẽ tự động phát hiện file mới và kích hoạt pipeline
+4. show raw delta table trong minio "	"Kịch bản CDC: On-Premise (Database -> Debezium/Airbyte -> MinIO -> Dagster)
+1. PostgreSQL. Chạy lệnh SELECT * FROM customers; để cho thấy dữ liệu hiện có (ví dụ: có 3 khách hàng)
+2. MinIO, vào bucket raw-zone/cdc/customers/. Cho thấy bucket này đang trống
+3. một khách hàng mới được thêm vào và thông tin của một khách hàng cũ được cập nhật 
+4. dùng Airbyte capture cdc"
