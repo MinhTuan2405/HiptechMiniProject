@@ -1,1 +1,0 @@
-select * from pg_settings where name = 'wal_level';

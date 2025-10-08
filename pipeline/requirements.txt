@@ -19,14 +19,6 @@ dagster-pipes==1.11.5
 dagster-webserver==1.11.5
 dagster_shared==1.11.5
 dagster-postgres
-dagster_dbt
-dbt-adapters==1.16.3
-dbt-common==1.27.1
-dbt-core==1.10.8
-dbt-extractor==0.6.0
-dbt-protos==1.0.348
-dbt-semantic-interfaces==0.9.0
-dbt-postgres
 deepdiff==7.0.1
 docstring_parser==0.17.0
 duckdb==1.3.2
@@ -118,10 +110,8 @@ xlrd
 
 # IO
 minio
-pymysql
 cryptography
 pycryptodome
-pyspark==3.4.3
 boto3
 deltalake
 confluent_kafka 
