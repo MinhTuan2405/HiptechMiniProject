@@ -50,7 +50,7 @@ def raw_sales_file():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         local_delta_path = os.path.join(tmpdir, file_base_name)
-        write_deltalake(local_delta_path, df, mode="overwrite")
+        write_deltalake(local_delta_path, df, mode="append")
 
         for root, dirs, files_in_dir in os.walk(local_delta_path):
             for file_name in files_in_dir:
